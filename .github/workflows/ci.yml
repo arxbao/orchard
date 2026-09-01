@@ -1,0 +1,21 @@
+name: CI
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Unit tests (OrchardCore)
+        run: swift test --package-path Packages/OrchardCore
+
+      - name: Build app
+        run: xcodebuild build -project orchard.xcodeproj -scheme orchard -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO
+
+      - name: Build CLI
+        run: swift build --package-path Packages/OrchardCore
