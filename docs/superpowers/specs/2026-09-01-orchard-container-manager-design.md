@@ -14,7 +14,9 @@
 | 平台哲学 | 以 apple/container 能力为准：docker 对齐只做语法层，能力不支持就 fail loudly（继承 davit 哲学） |
 | 代码来源 | 基线复用 davit（MIT 许可，合规要求保留版权声明），保留服务层/状态层设计，重构结构性短板 |
 | 通信架构 | GUI 与 CLI 均经 OrchardCore 走 XPC 与 container-apiserver 通信；全程不调用 `container` 命令二进制 |
-| UI 策略 | 功能等价于 davit；视觉借鉴其布局思路但**允许重新组织**，不强制像素级复刻；验收以"功能可用、操作流畅"为准 |
+| UI 策略 | **UI 基本复刻 davit 的布局**（功能与视图结构对应），开发中发现 UI 不合理处**允许优化**；验收以"功能可用、操作流畅"为准 |
+| 注释规范 | 代码须加注释：每个类型/方法/关键代码块写明**设计意图与原因**（继承 davit 的注释风格：解释"为什么"而非"是什么"）；公共 API 必须有文档注释；易踩坑处（上游 bug、平台限制）注明 workaround |
+| 知识索引 | 每个功能完成并经测试后运行 `codegraph sync`（本机 `/Users/xlee7/.local/bin/codegraph`）更新 `.codegraph/` 索引，供后续开发与子 agent 检索使用 |
 | 明确不做 | 自动更新 / 公证 / DMG 发布 / Homebrew / 文档站；体验增强（批量操作、健康徽章）与 compose 并行化列入"后续可选" |
 
 ## 2. 工程结构（方案 A'：Core 为 local Swift package）

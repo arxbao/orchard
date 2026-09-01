@@ -17,6 +17,8 @@
 - **Sandbox:** App target `ENABLE_APP_SANDBOX = NO`.
 - **Dependency pins:** `apple/container` `exact: "1.3.0"`, `apple/containerization` `exact: "0.41.0"` — NEVER `from:` for these two.
 - **Single test entry:** unit tests live in `Packages/OrchardCore/Tests/OrchardCoreTests/`; run via `swift test --package-path Packages/OrchardCore`. No test targets in the Xcode project.
+- **Comments (spec §1):** every type/method/key block MUST carry comments explaining *why* (intent), not *what*; public API needs doc comments; workarounds for upstream bugs/platform limits MUST be noted inline. davit's comment style is the model.
+- **Codegraph (spec §1):** after each task's tests pass and before merging, run `codegraph sync` at the repo root to refresh `.codegraph/` for later agents.
 - **Xcode 26.6** (build 17F113) is the toolchain; `objectVersion = 77` pbxproj format.
 - Commit messages: `feat:`, `chore:`, `build:`, `docs:` prefixes. Small commits per task.
 
