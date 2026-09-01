@@ -14,6 +14,9 @@
 | 平台哲学 | 以 apple/container 能力为准：docker 对齐只做语法层，能力不支持就 fail loudly（继承 davit 哲学） |
 | 代码来源 | 基线复用 davit（MIT 许可，合规要求保留版权声明），保留服务层/状态层设计，重构结构性短板 |
 | 通信架构 | GUI 与 CLI 均经 OrchardCore 走 XPC 与 container-apiserver 通信；全程不调用 `container` 命令二进制 |
+| UI 策略 | **UI 基本复刻 davit 的布局**（功能与视图结构对应），开发中发现 UI 不合理处**允许优化**；验收以"功能可用、操作流畅"为准 |
+| 注释规范 | 代码须加注释：每个类型/方法/关键代码块写明**设计意图与原因**（继承 davit 的注释风格：解释"为什么"而非"是什么"）；公共 API 必须有文档注释；易踩坑处（上游 bug、平台限制）注明 workaround |
+| 知识索引 | 每个功能完成并经测试后运行 `codegraph sync`（本机 `/Users/xlee7/.local/bin/codegraph`）更新 `.codegraph/` 索引，供后续开发与子 agent 检索使用 |
 | 明确不做 | 自动更新 / 公证 / DMG 发布 / Homebrew / 文档站；体验增强（批量操作、健康徽章）与 compose 并行化列入"后续可选" |
 
 ## 2. 工程结构（方案 A'：Core 为 local Swift package）
@@ -111,9 +114,9 @@ main（稳定：只接受测试通过）  ←──  dev（集成分支）  ←�
 | 阶段 | 功能分支 | 内容 | 验收 |
 |---|---|---|---|
 | 0 | `feature/orchardcore-skeleton` | 工程骨架：Core package（含 Tests/）+ App/CLI 入口 + 依赖 + 构建配置 + 移除模板测试 target + README/LICENSE/CI | `xcodebuild build` 出 App、`swift run orchard-cli` 出 usage、`swift test` 1 条单测绿、CI 文件就位 |
-| 1 | `feature/core-services` | 服务层拆分移植（7 文件 + Models + Errors） | 单测覆盖 flag 路由/Stats/StopReason |
+| 1 | `feature/core-services` | 服务层拆分移植（7 文件 + Models + Errors）。**注：含可见性 API 化（davit internal 符号 → library public，最小化原则）——这是本阶段主要工作量，不是纯搬文件** | 单测覆盖 flag 路由/Stats/StopReason |
 | 2 | `feature/core-compose-parser` | ComposeParser / ComposePlan（纯解析） | 解析单测绿 |
-| 3 | `feature/gui-containers` | AppState 门面 + Containers 列表/详情六 tab | GUI 可管理真实容器 |
+| 3 | `feature/gui-containers` | AppState 门面 + Containers 列表/详情。**注：详情六 tab 可再拆分为独立子分支（如先 Overview/Logs/Stats，后 Inspect/Terminal/Files），避免单分支过大** | GUI 可管理真实容器 |
 | 4 | `feature/gui-images` | Images + Run sheet + Build | 拉取/运行/构建可用 |
 | 5 | `feature/gui-compose` | Compose 执行 + 导入 UI + CLI compose | compose up/down 可用 |
 | 6 | `feature/gui-machines-volumes` | Machines + Volumes/Networks + Dashboard | 全资源管理可用 |
