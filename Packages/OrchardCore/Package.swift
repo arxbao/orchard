@@ -26,9 +26,26 @@ let package = Package(
         // The library. Swift 5 language mode is REQUIRED: the baseline code
         // (ported from davit) is written for Swift 5 with manual @MainActor
         // annotations; the Swift 6 default actor isolation would break it
-        // (spec §5 避坑 1).
+        // (spec §5 避坑 1). Products are the exact set davit's ContainerStack
+        // target linked (minus Yams/NIO — added when the compose stage lands).
         .target(
             name: "OrchardCore",
+            dependencies: [
+                .product(name: "ContainerAPIClient", package: "container"),
+                .product(name: "ContainerResource", package: "container"),
+                .product(name: "ContainerPersistence", package: "container"),
+                .product(name: "ContainerPlugin", package: "container"),
+                .product(name: "TerminalProgress", package: "container"),
+                .product(name: "ContainerBuild", package: "container"),
+                .product(name: "ContainerCommands", package: "container"),
+                .product(name: "ContainerImagesService", package: "container"),
+                .product(name: "MachineAPIClient", package: "container"),
+                .product(name: "ContainerizationExtras", package: "containerization"),
+                .product(name: "ContainerizationOCI", package: "containerization"),
+                .product(name: "ContainerizationOS", package: "containerization"),
+                .product(name: "Logging", package: "swift-log"),
+                .product(name: "NIO", package: "swift-nio"),
+            ],
             swiftSettings: [.swiftLanguageMode(.v5)]
         ),
         .executableTarget(
