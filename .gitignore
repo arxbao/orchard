@@ -9,8 +9,8 @@ dist/
 # Vendored container platform binaries (downloaded by scripts/vendor.sh)
 Vendor/
 
-# Xcode (if the package is ever opened in Xcode)
-*.xcodeproj/
+# Xcode — the .xcodeproj itself IS tracked (this is an Xcode project);
+# only user-private and build-artifact dirs are ignored
 xcuserdata/
 DerivedData/
 

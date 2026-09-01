@@ -49,7 +49,7 @@ open orchard.xcodeproj
 cd Packages/OrchardCore && swift run orchard-cli --help
 
 # Unit tests (no daemon required)
-xcodebuild test -scheme orchard -destination 'platform=macOS'
+swift test --package-path Packages/OrchardCore
 ```
 
 ## License

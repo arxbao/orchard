@@ -6,14 +6,21 @@
 //
 
 import SwiftUI
+import OrchardCore
 
+/// Placeholder root view for the skeleton stage.
+///
+/// Shows the Orchard version string from the shared OrchardCore library —
+/// this is the proof that the app target actually links the package
+/// (Task 4 acceptance). Feature branches replace this with the real
+/// container-management UI (Containers/Dashboard/...).
 struct ContentView: View {
     var body: some View {
         VStack {
-            Image(systemName: "globe")
+            Image(systemName: "shippingbox.fill")
                 .imageScale(.large)
                 .foregroundStyle(.tint)
-            Text("Hello, world!")
+            Text("Orchard \(OrchardCore.versionString)")
         }
         .padding()
     }
