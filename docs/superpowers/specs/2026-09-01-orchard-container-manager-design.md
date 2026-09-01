@@ -22,23 +22,24 @@
 orchard/                          (git repo: main + dev + feature/*)
 ├── Packages/OrchardCore/         ← local Swift package（声明式，diff 友好）
 │   ├── Package.swift             ← library: OrchardCore + executable: orchard-cli
-│   └── Sources/
-│       ├── OrchardCore/          ← 服务层 + 模型 + compose 解析（可单测）
-│       └── orchard-cli/          ← CLI 入口（ArgumentParser 重写）
+│   ├── Sources/
+│   │   ├── OrchardCore/          ← 服务层 + 模型 + compose 解析
+│   │   └── orchard-cli/          ← CLI 入口（ArgumentParser 重写）
+│   └── Tests/OrchardCoreTests/   ← Swift Testing 单测（唯一单测入口，swift test 跑）
 ├── orchard/                      ← App target（SwiftUI GUI）
 │   ├── orchardApp.swift          ← @main 唯一 GUI 入口
 │   ├── AppState/                 ← AppState 门面 + 领域 Store
 │   ├── Views/                    ← 全部 UI（按域分目录）
 │   └── Resources/                ← AppIcon、菜单栏模板图
-├── orchardTests/                 ← Swift Testing 单测（挂 OrchardCore，不挂 host）
-├── .github/workflows/ci.yml      ← CI：构建 + 单测
+├── .github/workflows/ci.yml      ← CI：swift test + xcodebuild build + swift build
 ├── LICENSE                       ← MIT，保留 davit 版权声明（合规硬要求）
 ├── README.md
-└── orchard.xcodeproj
+└── orchard.xcodeproj             ← 移除模板自带 orchardTests/orchardUITests target（YAGNI：单测走 package，GUI 靠人工冒烟）
 ```
 
 关键设计：
 - App target 经 Xcode 引用 local package（OrchardCore）；CLI 同时保留 `swift run orchard-cli` 能力（SPM executable）。
+- **已知代价（双构建系统）**：Xcode（DerivedData）与 SPM（`.build`）各自解析依赖、两套构建产物；local package 的依赖会被 fetch 两遍，首次构建较慢。可接受，属 hybrid 方案的固有成本。
 - 两个入口（GUI / CLI）都调用 `Environment.bootstrap()`（统一初始化 Logging + InstallRoot + container 平台解析）。
 
 ## 3. 模块划分与文件映射（davit → orchard）
@@ -48,7 +49,7 @@ orchard/                          (git repo: main + dev + feature/*)
 | `Backend.swift`（1758 行） | `Packages/OrchardCore/Sources/OrchardCore/` | 按领域拆 7 件：`ContainerClient` / `ContainerService` / `MachineService` / `BuildService` / `RegistryService` / `Environment`(bootstrap·InstallRoot·logging) / `Errors` |
 | `Compose.swift` | `.../Compose/` | 拆三件：`ComposeParser`（纯解析，可测）/ `ComposePlan` / `ComposeRunner`（执行） |
 | `Models.swift` | `.../Models/` | 显式 `Sendable` |
-| `AppState.swift` | `orchard/AppState/` | 保留 AppState 门面（对外 45 个调用方不动），内部重组为 ContainerStore / MachineStore / StatsStore |
+| `AppState.swift` | `orchard/AppState/` | 保留 AppState 门面（对外 45 个调用方不动），内部重组为 ContainerStore / MachineStore / StatsStore；**跨领域协调（如容器删除→statsHistory 清理、意外停止→通知）由 AppState 门面负责，Store 之间不直接耦合** |
 | `Views/`（14 文件） | `orchard/Views/` | 按视图域分目录（Containers/Images/Machines/Settings/Common） |
 | `App.swift` / `Main.swift` | GUI 入口 → `orchardApp.swift`；CLI 分发 → `orchard-cli/main.swift`（ArgumentParser 重写） | `@main` 一分为二，各调 `Environment.bootstrap()` |
 | `icon/`、`bundle.sh` 相关 | `orchard/Resources/` | 图标进 GUI target；bundle.sh 不迁移（直接 xcodebuild） |
@@ -62,16 +63,16 @@ orchard/                          (git repo: main + dev + feature/*)
 
 ## 5. 关键配置决策（避坑清单）
 
-1. **并发**：全部 target 设 `SWIFT_VERSION=5.0`，关闭 `SWIFT_DEFAULT_ACTOR_ISOLATION=MainActor` 与 `SWIFT_APPROACHABLE_CONCURRENCY=YES`（否则 davit 代码上千处编译错误）。
+1. **并发**：Xcode target 设 `SWIFT_VERSION=5.0`，关闭 `SWIFT_DEFAULT_ACTOR_ISOLATION=MainActor` 与 `SWIFT_APPROACHABLE_CONCURRENCY=YES`；**同时 Core 的 `Package.swift` 必须显式 `.swiftLanguageMode(.v5)`**（davit 原样配置）——否则 Core 按 Swift 6 编译，基线代码上千处报错。两套构建系统各自设置，缺一不可。
 2. **沙盒**：App target 关闭 `ENABLE_APP_SANDBOX`（与 davit 一致；容器工具需访问 ~/.config/container、/usr/local、系统 XPC 服务）。
 3. **依赖**：container `exact 1.3.0`、containerization `exact 0.41.0`（与已装 daemon 锁定，禁止 `from:`）；其余（ArgumentParser / swift-log / Yams / NIO）`from:`。
 4. **Bundle.main 审计**：grep 全部 `Bundle.` 引用；`resourceURL`（vendor 路径）类逻辑改注入式（GUI 传入路径）；图标 `NSImage(named:)` 留在 GUI target。
 5. **@main 唯一性**：GUI/CLI 各自独立 target，无冲突。
-6. **测试不挂 host**：单测 target 不设 TEST_HOST，纯逻辑秒级跑；集成测试保留 CLI `selftest` 子命令（需 live daemon）。
+6. **单测入口唯一**：单测放 package `Tests/`（`swift test` 跑），Xcode 工程不设单测 target——避免两套体系；集成测试保留 CLI `selftest` 子命令（需 live daemon）。
 
 ## 6. 测试策略（davit 没有的：可进 CI 的单测）
 
-**单测（Swift Testing，不依赖 daemon）**——第一阶段起即覆盖：
+**单测（Swift Testing，不依赖 daemon）**——**唯一入口：`Packages/OrchardCore/Tests/OrchardCoreTests/`，命令 `swift test --package-path Packages/OrchardCore`**。Xcode 工程不设单测 target（避免两套体系分叉）。第一阶段起即覆盖：
 - `ComposeParser`：解析子集、拓扑排序、循环拒绝、profiles、`.env` 插值
 - Flag 路由：`run` 命令 docker 标志分桶（davit `parseArgs` 纯函数迁移）
 - Stats 计算：CPU% / IO 速率差分
@@ -79,6 +80,8 @@ orchard/                          (git repo: main + dev + feature/*)
 - deep-link URL 解析
 
 **集成测试**：保留 davit `selftest` 子命令（live daemon，开发时手动跑，不进 CI）。
+
+**GUI 验证**：不做自动化 UI 测试（YAGNI），每个阶段验收由人工冒烟覆盖。
 
 ## 7. git 工作流
 
@@ -89,16 +92,17 @@ main（稳定：只接受测试通过）  ←──  dev（集成分支）  ←�
 - 分支：`feature/<name>` 每功能一分支；dev 为集成分支；main 只收合并。
 - worktree 隔离：每个功能分支在 `.worktrees/<branch>/` 建独立工作区；`.worktrees/` 加入 `.gitignore` 并提交。
 - 合并流程：feature 开发 → 单测通过 → 合并 dev → CI 绿 → 合并 main。
-- 本地验证命令：`xcodebuild test`（单测）+ `swift build`（CLI）+ 手动 GUI 冒烟。
+- 本地验证命令：`swift test --package-path Packages/OrchardCore`（单测）+ `xcodebuild build`（App）+ `swift build --package-path Packages/OrchardCore`（CLI）+ 手动 GUI 冒烟。
 
 ## 8. GitHub 发布（公开源码仓库 + CI）
 
 - **LICENSE**：MIT；必须保留 davit 的版权声明（"Copyright (c) 2026 Wouter de Bie"），附本项目版权与致谢。
 - **README**：功能简介、架构说明、构建方法（xcodebuild / swift run）、使用说明、致谢 davit。
 - **CI（.github/workflows/ci.yml）**：macOS runner，触发于 push/PR（dev、main）：
-  1. `xcodebuild test`（单测，不依赖 daemon）；
-  2. `swift build`（OrchardCore + orchard-cli）；
-  3. 任一失败即红。
+  1. `swift test --package-path Packages/OrchardCore`（单测，不依赖 daemon）；
+  2. `xcodebuild build -scheme orchard -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO`（CI 无证书，必须禁用签名，否则自动签名失败）；
+  3. `swift build --package-path Packages/OrchardCore`（CLI）；
+  4. 任一失败即红。
 - **分支保护（用户在 GitHub 上设置）**：main 要求 PR + CI 检查通过——把"测试没问题再合并"变成强制规则。
 - 不做：DMG、签名、公证、releases 资产（后续需要再加）。
 
@@ -106,7 +110,7 @@ main（稳定：只接受测试通过）  ←──  dev（集成分支）  ←�
 
 | 阶段 | 功能分支 | 内容 | 验收 |
 |---|---|---|---|
-| 0 | `feature/orchardcore-skeleton` | 工程骨架：Core package + App/CLI 入口 + 依赖 + 构建配置 + 测试框架 + README/LICENSE/CI | `xcodebuild` 出 App、`swift run orchard-cli` 出 usage、1 条单测绿、CI 文件就位 |
+| 0 | `feature/orchardcore-skeleton` | 工程骨架：Core package（含 Tests/）+ App/CLI 入口 + 依赖 + 构建配置 + 移除模板测试 target + README/LICENSE/CI | `xcodebuild build` 出 App、`swift run orchard-cli` 出 usage、`swift test` 1 条单测绿、CI 文件就位 |
 | 1 | `feature/core-services` | 服务层拆分移植（7 文件 + Models + Errors） | 单测覆盖 flag 路由/Stats/StopReason |
 | 2 | `feature/core-compose-parser` | ComposeParser / ComposePlan（纯解析） | 解析单测绿 |
 | 3 | `feature/gui-containers` | AppState 门面 + Containers 列表/详情六 tab | GUI 可管理真实容器 |
