@@ -1,0 +1,48 @@
+// swift-tools-version: 6.0
+import PackageDescription
+
+// OrchardCore — the shared backend for the orchard macOS app and the
+// orchard-cli executable. GUI and CLI talk to container-apiserver over XPC
+// through this package ONLY; the `container` CLI binary is never invoked
+// (see spec §1 "通信架构").
+let package = Package(
+    name: "OrchardCore",
+    platforms: [.macOS(.v15)],
+    products: [
+        .library(name: "OrchardCore", targets: ["OrchardCore"]),
+        .executable(name: "orchard-cli", targets: ["orchard-cli"]),
+    ],
+    dependencies: [
+        // Pinned to the exact release matching the installed container-apiserver.
+        // Client and daemon ship in lockstep; do not use `from:` here (spec §5).
+        .package(url: "https://github.com/apple/container.git", exact: "1.3.0"),
+        .package(url: "https://github.com/apple/containerization.git", exact: "0.41.0"),
+        .package(url: "https://github.com/apple/swift-argument-parser.git", from: "1.3.0"),
+        .package(url: "https://github.com/apple/swift-log.git", from: "1.0.0"),
+        .package(url: "https://github.com/jpsim/Yams.git", from: "6.2.1"),
+        .package(url: "https://github.com/apple/swift-nio.git", from: "2.80.0"),
+    ],
+    targets: [
+        // The library. Swift 5 language mode is REQUIRED: the baseline code
+        // (ported from davit) is written for Swift 5 with manual @MainActor
+        // annotations; the Swift 6 default actor isolation would break it
+        // (spec §5 避坑 1).
+        .target(
+            name: "OrchardCore",
+            swiftSettings: [.swiftLanguageMode(.v5)]
+        ),
+        .executableTarget(
+            name: "orchard-cli",
+            dependencies: [
+                "OrchardCore",
+                .product(name: "ArgumentParser", package: "swift-argument-parser"),
+            ],
+            swiftSettings: [.swiftLanguageMode(.v5)]
+        ),
+        .testTarget(
+            name: "OrchardCoreTests",
+            dependencies: ["OrchardCore"],
+            swiftSettings: [.swiftLanguageMode(.v5)]
+        ),
+    ]
+)
