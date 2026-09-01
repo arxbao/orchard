@@ -89,12 +89,12 @@ orchard/                          (git repo: main + dev + feature/*)
 ## 7. git 工作流
 
 ```
-main（稳定：只接受测试通过）  ←──  dev（集成分支）  ←──  feature/*（每个功能一个分支）
+main（稳定：只收大功能/补丁）  ←──  dev（集成分支：频繁提交汇聚点）  ←──  feature/*（每个功能一个分支）
 ```
 
-- 分支：`feature/<name>` 每功能一分支；dev 为集成分支；main 只收合并。
+- 分支：`feature/<name>` 每功能一分支；dev 为集成分支（开发中的频繁提交只进 dev）；**main 只接受"大功能或补丁"级别的合并**——用户可见的大功能（如 GUI 容器管理、compose 支持）或修复性补丁完成并验证后才合并 main，日常开发提交不合并 main。
 - worktree 隔离：每个功能分支在 `.worktrees/<branch>/` 建独立工作区；`.worktrees/` 加入 `.gitignore` 并提交。
-- 合并流程：feature 开发 → 单测通过 → 合并 dev → CI 绿 → 合并 main。
+- 合并流程：feature 开发 → 单测通过 → 合并 dev（随时）→ CI 绿 → 大功能/补丁里程碑时合并 main。
 - 本地验证命令：`swift test --package-path Packages/OrchardCore`（单测）+ `xcodebuild build`（App）+ `swift build --package-path Packages/OrchardCore`（CLI）+ 手动 GUI 冒烟。
 
 ## 8. GitHub 发布（公开源码仓库 + CI）
