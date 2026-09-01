@@ -34,3 +34,6 @@ Icon?
 .notes/
 #codegraph
 .codegraph/
+
+# Git worktrees
+.worktrees/
