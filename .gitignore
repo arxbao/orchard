@@ -1,0 +1,36 @@
+# Swift Package Manager
+.build/
+.swiftpm/
+.index-build/
+
+# App bundle output (rebuilt by scripts/bundle.sh)
+dist/
+
+# Vendored container platform binaries (downloaded by scripts/vendor.sh)
+Vendor/
+
+# Xcode (if the package is ever opened in Xcode)
+*.xcodeproj/
+xcuserdata/
+DerivedData/
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon?
+
+# Editors
+.vscode/
+.idea/
+*.swp
+
+# Claude Code local settings (machine-specific)
+.claude/settings.local.json
+
+# Misc
+*.log
+*.tmp
+.notes/
+#codegraph
+.codegraph/
