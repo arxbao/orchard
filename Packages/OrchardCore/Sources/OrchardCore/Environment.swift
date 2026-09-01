@@ -122,21 +122,5 @@ public struct ResolvedBinary: Equatable {
     }
 }
 
-/// Resolves the container platform install root from the managed location.
-/// Ported from davit's Backend.swift (lines 1271–1278); the full installer
-/// (download/install/runTool) is ported with the system controller in the
-/// container-services task — this file carries only what
-/// `ContainerBinary.resolve()` needs.
-public enum PlatformInstaller {
-    /// Must match the ContainerAPIClient version this app links (Package.swift pin).
-    public static let pinnedVersion = "1.3.0"
-
-    public static var managedRoot: String {
-        let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
-        return base.appendingPathComponent("dev.wouter.davit/platform/\(pinnedVersion)").path
-    }
-
-    public static var isInstalled: Bool {
-        FileManager.default.isExecutableFile(atPath: managedRoot + "/bin/container-apiserver")
-    }
-}
+// NOTE: `PlatformInstaller` (full installer incl. install/download/runTool)
+// lives in ContainerService.swift, ported from davit's Backend.swift.
