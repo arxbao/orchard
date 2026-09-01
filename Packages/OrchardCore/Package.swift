@@ -44,6 +44,7 @@ let package = Package(
                 .product(name: "ContainerizationOCI", package: "containerization"),
                 .product(name: "ContainerizationOS", package: "containerization"),
                 .product(name: "Logging", package: "swift-log"),
+                .product(name: "NIO", package: "swift-nio"),
             ],
             swiftSettings: [.swiftLanguageMode(.v5)]
         ),
