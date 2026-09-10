@@ -480,8 +480,9 @@ enum ContainerService {
     }
 
     static func systemStart() async throws {
-        guard let resolved = ContainerBinary.resolve() else {
-            throw CLIError(command: "system start", message: "container platform not found — install it from https://github.com/apple/container/releases or vendor it into the app")
+        let resolution = ContainerBinary.resolution()
+        guard case .resolved(let resolved) = resolution else {
+            throw CLIError(command: "system start", message: ContainerBinary.unavailableMessage(resolution))
         }
         do {
             try await SystemController.start(resolved: resolved)
@@ -498,19 +499,22 @@ enum ContainerService {
     /// Translate a cryptic platform startup error into an actionable one.
     /// Returns nil when unrecognized (caller keeps the raw message).
     static func friendlyStartError(_ raw: String) -> String? {
-        // A health-check field failing to decode means the running daemon is a
-        // different (older) container-apiserver than the version Davit ships —
-        // typically a pre-existing `container` install answering instead of
-        // Davit's own. (apple/container issue: the client hard-requires fields
-        // its own health reply calls optional.)
+        // A health-check field failing to decode means an older container-apiserver
+        // is answering — its reply is missing fields this client hard-requires
+        // (apple/container added them in 0.8.0). Resolution won't *pick* such an
+        // install any more and `start` boots stale services out first, so reaching
+        // here means one survived both: it re-registered itself, or it lives in a
+        // launchd domain we can't reach. Point at removing it, not at a restart
+        // loop — the old message told users to `container system stop` and try
+        // again, which just started the same old daemon over and over (davit #20).
         if raw.contains("in health check"), raw.contains("decode") {
             return """
-            A different version of the container platform is running than Davit expects \
-            (Davit ships \(PlatformInstaller.pinnedVersion)). This usually means an older \
-            `container` was already installed — the official package or Homebrew — and its \
-            daemon is the one answering. Stop it with `container system stop` (or reboot), \
-            then start services again so Davit's own \(PlatformInstaller.pinnedVersion) \
-            platform takes over.
+            The container daemon that answered speaks an older protocol than Orchard's \
+            \(PlatformInstaller.pinnedVersion) client, and Orchard could not replace it. Stop it from \
+            a terminal with `container system stop` (or reboot), then start services again — Orchard \
+            starts its own \(PlatformInstaller.pinnedVersion) platform. If it keeps coming back, \
+            remove that older install: `/usr/local/bin/uninstall-container.sh -k` for the official \
+            package (the `-k` keeps your containers and images), or `brew uninstall container`.
             """
         }
         return nil
@@ -603,6 +607,12 @@ enum SystemController {
     static let labelPrefix = "com.apple.container."
 
     static func start(resolved: ResolvedBinary) async throws {
+        // A daemon from another install can already be loaded under our label, and
+        // `launchctl bootstrap` is a silent no-op then (ServiceManager.register
+        // ignores its exit status). Without this, we would go on talking to that
+        // daemon instead of the platform we just resolved (davit issue #20).
+        await evictUnreachableServices()
+
         let appRoot = ApplicationRoot.path
         try? ConfigurationLoader.copyConfigurationToReadOnly(to: appRoot)
 
@@ -635,6 +645,30 @@ enum SystemController {
         let config = try await Backend.systemConfig()
         await ensureInitImage(config: config)
         try await ensureKernel(config: config)
+    }
+
+    /// Boots out every `com.apple.container.*` service when nothing answers a
+    /// health check — they're either wedged or they belong to an install whose
+    /// protocol this client can't speak. A daemon that *does* answer is left
+    /// alone: tearing that one down would kill running containers.
+    static func evictUnreachableServices() async {
+        // Generous timeout on purpose: a daemon that is merely slow to answer is
+        // one whose containers this must not kill. An absent or foreign daemon
+        // fails the ping immediately (no service, or a reply that can't decode),
+        // so the wait only ever costs something in the ambiguous case.
+        guard (try? await ClientHealthCheck.ping(timeout: .seconds(8))) == nil else { return }
+        guard let domain = try? ServiceManager.getDomainString() else { return }
+        let loaded = { (try? ServiceManager.enumerate())?.filter { $0.hasPrefix(labelPrefix) } ?? [] }
+        guard !loaded().isEmpty else { return }
+        for label in loaded() {
+            try? ServiceManager.deregister(fullServiceLabel: "\(domain)/\(label)")
+        }
+        // launchd unloads asynchronously — wait (briefly) so the bootstrap that
+        // follows isn't refused for a label still on its way out.
+        for _ in 0..<20 {
+            if loaded().isEmpty { return }
+            try? await Task.sleep(for: .milliseconds(250))
+        }
     }
 
     static func stop() async throws {
@@ -818,7 +852,10 @@ enum SystemConfigStore {
 /// root then hosts the launchd services exactly like a /usr/local install.
 enum PlatformInstaller {
     /// Must match the ContainerAPIClient version this app links (Package.swift pin).
-    static let pinnedVersion = "1.3.0"
+    static let pinnedVersion = "1.3.1"
+
+    /// `pinnedVersion` parsed — what resolution matches installs against.
+    static let pinned = PlatformVersion(pinnedVersion) ?? PlatformVersion(1, 0, 0)
 
     static var managedRoot: String {
         let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
@@ -874,6 +911,7 @@ enum PlatformInstaller {
         }
         // Point resolution at the managed root before any library API caches paths.
         setenv(InstallRoot.environmentName, root, 1)
+        ContainerBinary.invalidateVersionCache()
         progress("Installed to \(root)", nil)
     }
 
@@ -926,6 +964,7 @@ enum PlatformInstaller {
     /// the shared app root under com.apple.container).
     static func removeManaged() throws {
         try FileManager.default.removeItem(atPath: managedRoot)
+        ContainerBinary.invalidateVersionCache()
     }
 
     private static func findPayload(in dir: URL) -> URL? {
