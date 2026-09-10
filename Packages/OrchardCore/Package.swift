@@ -15,8 +15,12 @@ let package = Package(
     dependencies: [
         // Pinned to the exact release matching the installed container-apiserver.
         // Client and daemon ship in lockstep; do not use `from:` here (spec §5).
-        .package(url: "https://github.com/apple/container.git", exact: "1.3.0"),
-        .package(url: "https://github.com/apple/containerization.git", exact: "0.41.0"),
+        // 1.3.1 is a security patch (six advisories in containerization; the one
+        // reaching this process is CVE-2026-65388: RegistryClient followed an
+        // unvalidated WWW-Authenticate realm and leaked the registry password).
+        // Both pins move together — container 1.3.1 requires containerization 0.42.0.
+        .package(url: "https://github.com/apple/container.git", exact: "1.3.1"),
+        .package(url: "https://github.com/apple/containerization.git", exact: "0.42.0"),
         .package(url: "https://github.com/apple/swift-argument-parser.git", from: "1.3.0"),
         .package(url: "https://github.com/apple/swift-log.git", from: "1.0.0"),
         .package(url: "https://github.com/jpsim/Yams.git", from: "6.2.1"),

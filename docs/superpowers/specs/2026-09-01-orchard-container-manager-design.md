@@ -3,6 +3,8 @@
 > 日期：2026-09-01
 > 状态：已确认（用户批准）
 > 基线：davit（MIT，https://github.com/wouterdebie/davit），基线复用其服务层/状态层设计并重构
+> 跟踪基线：`4022f4f`（2026-09 同步）——container **1.3.1** / containerization **0.42.0**（CVE-2026-65388 安全补丁）、平台版本解析 fix #20、构建警告清理。
+> **后续阶段（GUI/CLI）移植时一律以该 commit 或更新的 davit 版本为源**，不要用更早的代码。
 
 ## 1. 定位与设计原则
 
